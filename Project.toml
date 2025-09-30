@@ -1,0 +1,20 @@
+name = "Imago"
+uuid = "a78c9d93-40da-478c-b275-b4d30d9e317a"
+authors = ["Kevin-Mattheus-Moerman <kevin.moerman@gmail.com>"]
+version = "0.1.0"
+
+[deps]
+Comodo = "59095408-2761-4f7a-bdc2-044e78630271"
+Contour = "d38c429a-6771-53c6-b99e-75d170b6e991"
+DICOM = "a26e6606-dd52-5f6a-a97f-4f611373d757"
+FileIO = "5789e2e9-d7fb-5bc7-8068-2c6fae9b9549"
+Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
+XML = "72c71f33-b9b6-44de-8c94-c961784809e2"
+
+[compat]
+Comodo = "1.0.3"
+Contour = "0.6.3"
+DICOM = "0.11.0"
+FileIO = "1.17.0"
+Printf = "1.11.0"
+XML = "0.3.8"

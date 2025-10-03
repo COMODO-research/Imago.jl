@@ -7,11 +7,14 @@ This package enables basic semi-automated (but mostly manual) 3D medical image s
 ![Animation shown bone segmentation process for MRI of the lower leg](https://github.com/COMODO-research/Imago.jl/blob/main/assets/anim/segmentation_tibia.gif)
 
 # Getting started 
-
 This package is currently not registered. Hence to install use: 
 ```
 ] add https://github.com/COMODO-research/Imago.jl.git
 ```
+Next one could start by testing an example from the example folder. 
+
+# Documentation
+Under construction. 
 
 # License
 https://github.com/COMODO-research/Imago.jl/blob/main/LICENSE

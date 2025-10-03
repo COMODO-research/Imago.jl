@@ -9,11 +9,11 @@ function imagodir()
     pkgdir(@__MODULE__)
 end
 
-function dicomdir2dicomvec(dcmFolder)
-    fileSet = readdir(dcmFolder)
-
+function dicomdir2dicomvec(dcmFolder; extension_exclude = [".txt"])
+    fileSet = get_image_file_set(dcmFolder; extension_exclude = extension_exclude)        
+    
     # Read in first 
-    dcm = dcm_parse(dcmFolder*"/"*fileSet[1])
+    dcm = dcm_parse(joinpath(dcmFolder,fileSet[1]))
     dicomData = Dict{Int, typeof(dcm)}()
     # dicomData = Vector{typeof(dcm)}(undef,max_instanceNumber)
     for f in fileSet # for each file 
@@ -21,6 +21,18 @@ function dicomdir2dicomvec(dcmFolder)
         dicomData[dcm.InstanceNumber] = dcm
     end
     return dicomData
+end
+
+function get_image_file_set(imageFolder; extension_exclude = [".txt"])        
+    fileNameSet = readdir(imageFolder)
+    imageNameSet = Vector{String}()
+    for fileName in fileNameSet
+        _, fileExtension = splitext(fileName)
+        if !in(lowercase(fileExtension),extension_exclude)
+            push!(imageNameSet, fileName)
+        end
+    end
+    return imageNameSet
 end
 
 function getvalrange(dicomData)    

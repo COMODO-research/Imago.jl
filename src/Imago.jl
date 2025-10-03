@@ -29,6 +29,6 @@ export Contour
 export FileIO
 
 # Export functions
-export imagodir, dicomdir2dicomvec, getvalrange, getslice, getdemodata
+export imagodir, dicomdir2dicomvec, getvalrange, getslice, getdemodata, get_image_file_set
 
 end # module Imago

@@ -28,7 +28,8 @@ cursor_demote = GLFW.CreateStandardCursor(GLFW.HAND_CURSOR)
 cursor_delete = GLFW.CreateStandardCursor(GLFW.HAND_CURSOR)
 
 # Example data 
-dcmFolder= getdemodata("MRI_human_lower_leg")
+# dcmFolder = "/home/kevin/Downloads/Aligned CT-DICOM"
+dcmFolder = getdemodata("MRI_human_lower_leg")
 
 function xy2ij_click(xy_click, voxelSize)
     return ceil.(Int, xy_click./voxelSize[1:2])

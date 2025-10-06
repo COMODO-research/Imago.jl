@@ -15,7 +15,6 @@ function dicomdir2dicomvec(dcmFolder; extension_exclude = [".txt"])
     # Read in first 
     dcm = dcm_parse(joinpath(dcmFolder,fileSet[1]))
     dicomData = Dict{Int, typeof(dcm)}()
-    # dicomData = Vector{typeof(dcm)}(undef,max_instanceNumber)
     for f in fileSet # for each file 
         dcm = dcm_parse(dcmFolder*"/"*f)
         dicomData[dcm.InstanceNumber] = dcm
@@ -53,12 +52,11 @@ function getslice(dicomData,ind,dir=1)
     T = eltype(dcm.PixelData)
     siz = size(dcm.PixelData)
     n = length(dicomData)
-    if dir ==1 
-        A = Matrix{T}(undef,n,siz[dir])
+    if dir == 1 
+        A = Matrix{T}(undef,n,siz[2])
     else
-        A = Matrix{T}(undef,siz[dir],n)
+        A = Matrix{T}(undef,siz[1],n)
     end
-
     for (iSlice, sliceKey) in enumerate(sliceKeySet)
         if dir == 1 
             A[iSlice,:] = dicomData[sliceKey].PixelData[ind,:]

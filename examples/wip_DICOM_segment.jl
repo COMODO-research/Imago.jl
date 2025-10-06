@@ -28,8 +28,9 @@ cursor_demote = GLFW.CreateStandardCursor(GLFW.HAND_CURSOR)
 cursor_delete = GLFW.CreateStandardCursor(GLFW.HAND_CURSOR)
 
 # Example data 
-# dcmFolder = "/home/kevin/Downloads/Aligned CT-DICOM"
 dcmFolder = getdemodata("MRI_human_lower_leg")
+# dcmFolder = "/home/kevin/DATA/Code/Julia/PROJECTS/Imago_dev/dev/Imago/assets/data/Visible_human/Aligned_CT_DICOM/VHM_FullBody_CT"
+# dcmFolder = "/home/kevin/DATA/Code/Julia/PROJECTS/Imago_dev/dev/Imago/assets/data/Visible_human/Aligned_CT_DICOM/VHF_FullBody_CT"
 
 function xy2ij_click(xy_click, voxelSize)
     return ceil.(Int, xy_click./voxelSize[1:2])
@@ -216,7 +217,7 @@ global contourLevel = zero(eltype(dicomData[startSlice].PixelData))
 global λ = 1.0
 global colorbarLimit_upper = maxVal
 global colorbarLimit_lower = minVal
-global save_path = joinpath(comododir(),"temp.xml")
+global save_path = joinpath(imagodir(),"temp.xml")
 x = 0.0:voxelSize[1]:voxelSize[1]*siz[1]
 y = 0.0:voxelSize[2]:voxelSize[2]*siz[2]
 z = dicomData[firstSlice].SliceLocation:voxelSize[3]:(dicomData[firstSlice].SliceLocation + (voxelSize[3]*siz[3]))
@@ -226,8 +227,8 @@ B = getslice(dicomData,initialSliceIndices[2],2)
 
 ## Visualization------------------------------------------
 cmap = :grays
-
-fig = Figure(size=(1600,1200))
+figSize = (1600,1200)
+fig = Figure(size=figSize)
 
 Label(fig[1, 3][1, 1], "Smooth raw")
 toggle = Toggle(fig[1, 3][1,2], active = false)
@@ -235,7 +236,9 @@ toggle = Toggle(fig[1, 3][1,2], active = false)
 Label(fig[1, 3][2, 1], "λ: ")
 h_textBox_smooth = Textbox(fig[1, 3][2, 2], placeholder = "$λ")
 
-h_textBox_save = Textbox(fig[1, :], placeholder = save_path)
+h_textBox_save = Textbox(fig[2, :], placeholder = save_path)
+# h_textBox_save.displayed_string = save_path
+# h_textBox_save.stored_string = save_path
 h_button_save = Button(fig[1, 3][3, 2], label = "Save")
 
 h_button_load = Button(fig[1, 3][4, 2], label = "Load")
@@ -246,18 +249,18 @@ h_textBox_cMax = Textbox(fig[1, 3][5, 2], placeholder = "$maxVal")
 Label(fig[1, 3][6, 1], "cMin: ")
 h_textBox_cMin = Textbox(fig[1, 3][6, 2], placeholder = "$minVal")
 
-ax1 = LScene(fig[2,1]); 
+ax1 = LScene(fig[1,1], height=750); 
 # _cc = Makie.Camera3D(ax1.scene, projectiontype = Makie.Orthographic)
 # ax1 = Axis3(fig[1, 1], aspect = :data, xlabel = "X", ylabel = "Y", zlabel = "Z",limits=(0,siz[1]*voxelSize[1],0,siz[2]*voxelSize[2],0,siz[3]*voxelSize[3]))
 
-hs1 = heatmap!(ax1,z,x,A, colormap = cmap, colorrange=(colorbarLimit_lower, colorbarLimit_upper))
+hs1 = heatmap!(ax1,z,y,A, colormap = cmap, colorrange=(colorbarLimit_lower, colorbarLimit_upper))
 α = -0.5*pi
 a = (0.0,1.0,0.0) # x-y-z
 k = Makie.Quaternion(sin(α/2)*a[1], sin(α/2)*a[2], sin(α/2)*a[3], cos(α/2))
 Makie.rotate!(hs1, k)
 Makie.translate!(hs1, initialSliceIndices[1]*voxelSize[1], 0.0, 0.0)
 
-hs2 = heatmap!(ax1,y,z,B, colormap = cmap, colorrange=(colorbarLimit_lower, colorbarLimit_upper))
+hs2 = heatmap!(ax1,x,z,B, colormap = cmap, colorrange=(colorbarLimit_lower, colorbarLimit_upper))
 α = 0.5*pi
 a = (1.0,0.0,0.0) # x-y-z
 k = Makie.Quaternion(sin(α/2)*a[1], sin(α/2)*a[2], sin(α/2)*a[3], cos(α/2))
@@ -269,7 +272,7 @@ Makie.translate!(hs3, 0.0, 0.0, dicomData[startSlice].SliceLocation)
 
 
 # ax2 = LScene(fig[1,1]); 
-ax2 = Axis(fig[2, 2], aspect = DataAspect(), xlabel = "X", ylabel = "Y", title="Sample contour", limits=(0,siz[1]*voxelSize[1],0,siz[2]*voxelSize[2]),xrectzoom=false, yrectzoom=false)
+ax2 = Axis(fig[1, 2], aspect = DataAspect(), xlabel = "X", ylabel = "Y", title="Sample contour", limits=(0,siz[1]*voxelSize[1],0,siz[2]*voxelSize[2]),xrectzoom=false, yrectzoom=false)
 hs4 = heatmap!(ax2,x,y,raw_image, colormap = cmap, colorrange=(colorbarLimit_lower, colorbarLimit_upper))
 
 currentMode = Observable(:sample)
@@ -294,7 +297,7 @@ on(h_textBox_smooth.stored_string) do s
 end
 
 on(h_textBox_save.stored_string) do s
-    global save_path = parse(String, s)
+    global save_path = s#parse(String, s)
 end
 
 on(h_textBox_cMax.stored_string) do c
@@ -354,8 +357,8 @@ on(h_button_save.clicks) do n
     close(io)
 end
 
-function load_contours(filename)    
-    doc = read(filename, Node)
+function load_contours(file_name)    
+    doc = read(file_name, Node)
     contour_segmentation_node = doc.children[2]
 
     info_node = contour_segmentation_node.children[1]
@@ -363,8 +366,9 @@ function load_contours(filename)
 
     contours_node = contour_segmentation_node.children[2]
     contourSets_accepted = [ Vector{Vector{Point{3,Float64}}}()  for _ in 1:numSlices]  
-    for (iSlice,slice_node) in enumerate(children(contours_node))
-        for (iContour, contour_node) in enumerate(children(slice_node))
+    for slice_node in children(contours_node)
+        iSlice = parse(Int,slice_node.attributes["id"])
+        for contour_node in children(slice_node)
             V = Vector{Point{3,Float64}}()        
             for point_node in children(contour_node)                
                 s = split(point_node.children[1].value,",")
@@ -687,19 +691,26 @@ on(currentMode) do val
     end
 end
 
-hSlider1 = Slider(fig[3, :], range = 1:1:siz[1], startvalue = ceil(Int,siz[1]/2), linewidth=30)
+sg = SliderGrid(
+    fig[3, 1:3],
+    (label = "X-slice", range = 1:1:siz[1], startvalue = ceil(Int,siz[1]/2)),
+    (label = "Y-slice", range = 1:1:siz[2], startvalue = ceil(Int,siz[2]/2)),
+    (label = "Z-slice", range = sliceKeySet[1]:1:sliceKeySet[end], startvalue = ceil(Int,siz[3]/2)),
+    tellheight = true, valign=:bottom)
+
+hSlider1 = sg.sliders[1] #Slider(fig[3, :], range = 1:1:siz[1], startvalue = ceil(Int,siz[1]/2), linewidth=30)
 on(hSlider1.value) do stepIndex 
     hs1[3] = getslice(dicomData,stepIndex,1)
     Makie.translate!(hs1, stepIndex*voxelSize[1], 0.0, 0.0)
 end
 
-hSlider2 = Slider(fig[4, :], range = 1:1:siz[2], startvalue = ceil(Int,siz[2]/2), linewidth=30)
+hSlider2 = sg.sliders[2] # Slider(fig[4, :], range = 1:1:siz[2], startvalue = ceil(Int,siz[2]/2), linewidth=30)
 on(hSlider2.value) do stepIndex 
     hs2[3] = getslice(dicomData,stepIndex,2)
-    Makie.translate!(hs2, 0.0,stepIndex*voxelSize[2], 0.0)
+    Makie.translate!(hs2, 0.0, stepIndex*voxelSize[2], 0.0)
 end
 
-hSlider3 = Slider(fig[5, :], range = sliceKeySet, startvalue = startSlice, linewidth=30)
+hSlider3 = sg.sliders[3]#Slider(fig[5, :], range = sliceKeySet, startvalue = startSlice, linewidth=30)
 on(hSlider3.value) do stepIndex 
     global sliceIndex = stepIndex
 
@@ -731,3 +742,24 @@ GLFW.SetCursor(window, cursor_sample)
 
 
 # slider2anim(fig,hSlider,"/home/kevin/Desktop/dcmtest.mp4"; backforth=true, duration=2.0)
+
+# function swapxy(contourSets_accepted)
+#     contoursFixed = [ Vector{Vector{Point{3,Float64}}}()  for _ in 1:length(contourSets_accepted)]  
+#     for i = 1:1: length(contourSets_accepted)
+#         contourSet = contourSets_accepted[i]
+#         for (j,V) in enumerate(contourSet)     
+#             if !isempty(V)   
+#                 contourSet[j] = [Point{3,Float64}(v[1], v[2], v[3]) for v in V]     
+#             end
+#         end  
+#         if !isempty(contourSet)  
+#             contoursFixed[i+146] = contourSet
+#         end
+#     end   
+#     return contoursFixed 
+# end
+
+# contoursFixed = swapxy(contourSets_accepted)
+
+# global contourSets_accepted = contoursFixed
+# update_accepted_plot(h1_accepted, h2_accepted, contourSets_accepted)

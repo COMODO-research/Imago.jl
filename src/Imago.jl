@@ -19,6 +19,7 @@ include("functions.jl")
 
 # Export imported modules for later possible use
 export Comodo
+export BSplineKit
 export GLMakie
 export GLFW
 export Colors

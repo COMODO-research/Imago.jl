@@ -18,14 +18,15 @@ using Contour
 cursor1 = GLFW.CreateStandardCursor(GLFW.CROSSHAIR_CURSOR)
 
 GLMakie.closeall()
-
 cursor_sample = GLFW.CreateStandardCursor(GLFW.CROSSHAIR_CURSOR)
-cursor_cut = GLFW.CreateStandardCursor(GLFW.ARROW_CURSOR)
-cursor_draw = GLFW.CreateStandardCursor(GLFW.HAND_CURSOR)
+cursor_cut    = GLFW.CreateStandardCursor(GLFW.ARROW_CURSOR)
+cursor_draw   = GLFW.CreateStandardCursor(GLFW.HAND_CURSOR)
 cursor_accept = GLFW.CreateStandardCursor(GLFW.HAND_CURSOR)
 cursor_smooth = GLFW.CreateStandardCursor(GLFW.HAND_CURSOR)
 cursor_demote = GLFW.CreateStandardCursor(GLFW.HAND_CURSOR)
 cursor_delete = GLFW.CreateStandardCursor(GLFW.HAND_CURSOR)
+
+sliderWidth = 20 # Width for the sliders in the slidergrid
 
 # Example data 
 dcmFolder = getdemodata("MRI_human_lower_leg")
@@ -227,7 +228,7 @@ B = getslice(dicomData,initialSliceIndices[2],2)
 
 ## Visualization------------------------------------------
 cmap = :grays
-figSize = (1600,1200)
+figSize = (1800, 1200)
 fig = Figure(size=figSize)
 
 Label(fig[1, 3][1, 1], "Smooth raw")
@@ -249,9 +250,9 @@ h_textBox_cMax = Textbox(fig[1, 3][5, 2], placeholder = "$maxVal")
 Label(fig[1, 3][6, 1], "cMin: ")
 h_textBox_cMin = Textbox(fig[1, 3][6, 2], placeholder = "$minVal")
 
-ax1 = LScene(fig[1,1], height=750); 
-# _cc = Makie.Camera3D(ax1.scene, projectiontype = Makie.Orthographic)
-# ax1 = Axis3(fig[1, 1], aspect = :data, xlabel = "X", ylabel = "Y", zlabel = "Z",limits=(0,siz[1]*voxelSize[1],0,siz[2]*voxelSize[2],0,siz[3]*voxelSize[3]))
+ax1 = LScene(fig[1,1]); 
+# ax1 = AxisGeom(fig[1, 1], limits=(0,siz[1]*voxelSize[1],0,siz[2]*voxelSize[2],0,siz[3]*voxelSize[3]))
+
 
 hs1 = heatmap!(ax1,z,y,A, colormap = cmap, colorrange=(colorbarLimit_lower, colorbarLimit_upper))
 α = -0.5*pi
@@ -698,6 +699,10 @@ sg = SliderGrid(
     (label = "Z-slice", range = sliceKeySet[1]:1:sliceKeySet[end], startvalue = ceil(Int,siz[3]/2)),
     tellheight = true, valign=:bottom)
 
+sg.sliders[1].linewidth = sliderWidth
+sg.sliders[2].linewidth = sliderWidth
+sg.sliders[3].linewidth = sliderWidth
+
 hSlider1 = sg.sliders[1] #Slider(fig[3, :], range = 1:1:siz[1], startvalue = ceil(Int,siz[1]/2), linewidth=30)
 on(hSlider1.value) do stepIndex 
     hs1[3] = getslice(dicomData,stepIndex,1)
@@ -735,31 +740,12 @@ end
 slidercontrol(hSlider3,fig) 
 
 Colorbar(fig[:,4],hs4)
-
+rowgap!(fig.layout,2)
+colgap!(fig.layout,2)
+colsize!(fig.layout, 1, Relative(0.45))
+colsize!(fig.layout, 2, Relative(0.45))
+rowsize!(fig.layout, 1, Relative(0.9))
+# rowsize!(fig.layout, 2, Relative(0.9))
 screen = display(fig)
 window = GLMakie.to_native(screen)
 GLFW.SetCursor(window, cursor_sample)
-
-
-# slider2anim(fig,hSlider,"/home/kevin/Desktop/dcmtest.mp4"; backforth=true, duration=2.0)
-
-# function swapxy(contourSets_accepted)
-#     contoursFixed = [ Vector{Vector{Point{3,Float64}}}()  for _ in 1:length(contourSets_accepted)]  
-#     for i = 1:1: length(contourSets_accepted)
-#         contourSet = contourSets_accepted[i]
-#         for (j,V) in enumerate(contourSet)     
-#             if !isempty(V)   
-#                 contourSet[j] = [Point{3,Float64}(v[1], v[2], v[3]) for v in V]     
-#             end
-#         end  
-#         if !isempty(contourSet)  
-#             contoursFixed[i+146] = contourSet
-#         end
-#     end   
-#     return contoursFixed 
-# end
-
-# contoursFixed = swapxy(contourSets_accepted)
-
-# global contourSets_accepted = contoursFixed
-# update_accepted_plot(h1_accepted, h2_accepted, contourSets_accepted)

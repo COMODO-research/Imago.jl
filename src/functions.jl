@@ -232,7 +232,7 @@ function load_contours(file_name)
 
     info_node = contour_segmentation_node.children[1]
     numSlices = parse(Int,info_node.children[1].children[1].value)
-
+    voxelSize = parse.(Float64,split(info_node.children[2].children[1].value,","))
     contours_node = contour_segmentation_node.children[2]
     contourSets_accepted = [ Vector{Vector{Point{3,Float64}}}()  for _ in 1:numSlices]  
     for slice_node in children(contours_node)
@@ -247,11 +247,37 @@ function load_contours(file_name)
             push!(contourSets_accepted[iSlice],V)
         end
     end
-    return contourSets_accepted
+    return contourSets_accepted, voxelSize
 end
 
 
-
+function exportcontours(save_path, contourSets_accepted, voxelSize)
+    numSlices = length(contourSets_accepted)
+    io = open(save_path, "w")
+    write(io, """<?xml version="1.0" encoding="UTF-8"?> \n""")    
+    write(io, "<contour_segmentation> \n")
+    write(io, "<info> \n")
+    write(io, "    <number_of_slices>$numSlices</number_of_slices>\n") 
+    write(io, "    <voxel_size>" * @sprintf("%.16e, %.16e, %.16e", voxelSize[1], voxelSize[2], voxelSize[3]) * "</voxel_size>\n")
+    write(io, "</info> \n")
+    write(io, "<contours> \n")
+    for (iSlice,contourSet) in enumerate(contourSets_accepted)
+        if !isempty(contourSet)
+            write(io, """    <slice id="$iSlice"> \n""")            
+            for (iContour,V) in enumerate(contourSets_accepted[iSlice])            
+                write(io, """        <contour id="$iContour"> \n""")
+                for (iPoint,v) in enumerate(V)
+                    write(io, """            <point id="$iPoint">""" * join([@sprintf("%.16e", x) for x ∈ v],',') * "</point> \n")            
+                end            
+                write(io, "        </contour> \n")
+            end
+            write(io, "    </slice> \n")            
+        end
+    end    
+    write(io, "</contours>")
+    write(io, "</contour_segmentation> \n")
+    close(io)
+end
 
 ################################################################################
 
@@ -419,35 +445,12 @@ function contoursegment(dcmFolder)
 
 
     on(h_button_save.clicks) do n
-        numSlices = length(contourSets_accepted)
-        io = open(save_path, "w")
-        write(io, """<?xml version="1.0" encoding="UTF-8"?> \n""")    
-        write(io, "<contour_segmentation> \n")
-        write(io, "<info> \n")
-        write(io, "    <number_of_slices>$numSlices</number_of_slices>\n")            
-        # write(io, "    <number_of_slices>" * @sprintf("%.16e, %.16e, %.16e", voxelSize[1], voxelSize[2], voxelSize[3]) * "</number_of_slices>\n")
-        write(io, "</info> \n")
-        write(io, "<contours> \n")
-        for (iSlice,contourSet) in enumerate(contourSets_accepted)
-            if !isempty(contourSet)
-                write(io, """    <slice id="$iSlice"> \n""")            
-                for (iContour,V) in enumerate(contourSets_accepted[iSlice])            
-                    write(io, """        <contour id="$iContour"> \n""")
-                    for (iPoint,v) in enumerate(V)
-                        write(io, """            <point id="$iPoint">""" * join([@sprintf("%.16e", x) for x ∈ v],',') * "</point> \n")            
-                    end            
-                    write(io, "        </contour> \n")
-                end
-                write(io, "    </slice> \n")            
-            end
-        end    
-        write(io, "</contours>")
-        write(io, "</contour_segmentation> \n")
-        close(io)
+        exportcontours(save_path, contourSets_accepted, voxelSize)
     end
 
     on(h_button_load.clicks) do n
-        global contourSets_accepted = load_contours(save_path)    
+        contourSets_imported, voxelSize = load_contours(save_path)  
+        global contourSets_accepted = contourSets_imported
         update_accepted_plot(h1_accepted, h2_accepted, contourSets_accepted)
     end
 

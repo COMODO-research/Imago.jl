@@ -90,7 +90,7 @@ end
 function smooth_contour(V_contour_raw; λ = 1.0)
     if length(V_contour_raw)>4
         L = curve_length(V_contour_raw; close_loop=true)
-        S = BSplineKit.fit(L[1:end-1], V_contour_raw, λ, BSplineKit.Periodic(maximum(L)))
+        S = fit(BSplineOrder(4), L[1:end-1], V_contour_raw, λ, BSplineKit.Periodic(maximum(L)))
         L_fit = range(0.0,maximum(L),length(L))
         V_fit = S.(L_fit[1:end-1])
         V_fit_even = evenly_space(V_fit, min(voxelSize[1], voxelSize[2]); close_loop = true, niter=10, spline_order = 4) 

@@ -251,7 +251,7 @@ function load_contours(file_name)
 end
 
 
-function exportcontours(save_path, contourSets_accepted, voxelSize)
+function save_contours(save_path, contourSets_accepted, voxelSize)
     numSlices = length(contourSets_accepted)
     io = open(save_path, "w")
     write(io, """<?xml version="1.0" encoding="UTF-8"?> \n""")    
@@ -279,8 +279,160 @@ function exportcontours(save_path, contourSets_accepted, voxelSize)
     close(io)
 end
 
-################################################################################
+function get_contour_extrema(contourSets)
+    xMin =  Inf
+    xMax = -Inf
+    yMin =  Inf
+    yMax = -Inf
+    zMin =  Inf
+    zMax = -Inf
+    for contourSet in contourSets
+        for P in contourSet
+            for p in P
+                xMin = min(xMin,p[1])
+                xMax = max(xMax,p[1])
+                yMin = min(yMin,p[2])
+                yMax = max(yMax,p[2])
+                zMin = min(zMin,p[3])
+                zMax = max(zMax,p[3])            
+            end
+        end
+    end
+    return xMin, xMax, yMin, yMax, zMin, zMax
+end
 
+function contour2bool(contourSets, voxelSize)
+    xMin, xMax, yMin, yMax, zMin, zMax = get_contour_extrema(contourSets)
+
+    # Create image coordinate grid
+    nAdd = 2.0
+    xRange = xMin-nAdd*voxelSize[1]:voxelSize[1]:xMax+nAdd*voxelSize[1]
+    yRange = yMin-nAdd*voxelSize[2]:voxelSize[2]:yMax+nAdd*voxelSize[2]
+    zRange = zMin:voxelSize[3]:zMax
+
+    indicesSlices = findall(.!isempty.(contourSets))
+    B = fill(false, (length(xRange), length(yRange), length(indicesSlices)))
+    for (k,iSlice) in enumerate(indicesSlices)
+        for P in contourSets[iSlice]                
+            for (i,x) in enumerate(xRange)
+                for (j,y) in enumerate(yRange)                
+                    s = inpolygon(Point{3,Float64}(x, y, P[1][3]),P)
+                    if s >= 0 # In or on 
+                        B[i,j,k] = !B[i,j,k] # Flip bool (this ensures complex geometry e.g. featuring holes etc, are treated properly)
+                    end
+                end            
+            end
+        end
+    end
+    return B, xRange, yRange, zRange
+end
+
+function boolBoundary(B)
+    # Cross shaped kernel
+    kernelCart = [CartesianIndex(-1,  0,  0), # Previous row
+                  CartesianIndex( 1,  0,  0), # Next row
+                  CartesianIndex( 0, -1,  0), # Previous column
+                  CartesianIndex( 0,  1,  0), # Next column
+                  CartesianIndex( 0,  0, -1), # Previous slice
+                  CartesianIndex( 0,  0,  1)] # Next slice
+
+    Bb = zeros(Bool, size(B)) # False array initialisation
+    for ijk in findall(B) # For all true element in B            
+        for ijk_shift in kernelCart # For each Cartesian index shift in the kernel 
+            ijk_check = ijk + ijk_shift # The proposed CartesianIndex to check
+            if checkbounds(Bool, B, ijk_check) && B[ijk_check] == false            
+                Bb[ijk] = true # Set true if we found a false in the kernel                                               
+                break # Stop if at least one was found
+            end                        
+        end
+    end
+    return Bb
+end
+
+function boolGrow!(B; n=1)
+    if any(B) 
+        # Cross shaped kernel
+        kernelCart = [CartesianIndex(-1,  0,  0), # Previous row
+                      CartesianIndex( 1,  0,  0), # Next row
+                      CartesianIndex( 0, -1,  0), # Previous column
+                      CartesianIndex( 0,  1,  0), # Next column
+                      CartesianIndex( 0,  0, -1), # Previous slice
+                      CartesianIndex( 0,  0,  1)] # Next slice    
+        for _ in 1:n                  
+            for ijk in findall(B) # For all true elements in B            
+                for ijk_shift in kernelCart # For each Cartesian index shift in the kernel 
+                    ijk_check = ijk + ijk_shift # The proposed CartesianIndex to check
+                    if checkbounds(Bool, B, ijk_check) && B[ijk_check] == false # If valid and currently false
+                        B[ijk_check] = true # Switch to true
+                    end                        
+                end
+            end
+        end
+        return B
+    else # Non-true so just return B
+        return B
+    end
+    
+end
+
+function boolGrow(B; n=1)
+    return boolGrow!(deepcopy(B); n=n)
+end
+
+function boolShrink!(B; n=1)
+    if any(B) 
+        # Cross shaped kernel
+        kernelCart = [CartesianIndex(-1,  0,  0), # Previous row
+                      CartesianIndex( 1,  0,  0), # Next row
+                      CartesianIndex( 0, -1,  0), # Previous column
+                      CartesianIndex( 0,  1,  0), # Next column
+                      CartesianIndex( 0,  0, -1), # Previous slice
+                      CartesianIndex( 0,  0,  1)] # Next slice  
+
+        for _ in 1:n                  
+            for ijk in findall(.!B) # For all false elements in B            
+                for ijk_shift in kernelCart # For each Cartesian index shift in the kernel 
+                    ijk_check = ijk + ijk_shift # The proposed CartesianIndex to check
+                    if checkbounds(Bool, B, ijk_check) && B[ijk_check] # If valid and currently true                
+                        B[ijk_check] = false # Switch to false
+                    end                        
+                end
+            end
+        end
+        return B
+    else # Non-true so just return B
+        return B
+    end
+end
+
+function boolShrink(B; n=1)
+    return boolShrink!(deepcopy(B); n=n)
+end
+
+function contour2levelset(contourSets, voxelSize)
+    B, xRange, yRange, zRange = contour2bool(contourSets, voxelSize)
+    B2 = boolBoundary(B) # Boundary boolean
+    boolGrow!(B2; n=1)
+    M = fill(Float64(1),size(B))
+    M[B] .= Float64(-1)
+    indicesSlices = findall(.!isempty.(contourSets))
+    for ijk in findall(B2)    
+        d = Inf    
+        for P in contourSets[indicesSlices[ijk[3]]]        
+            for p in P
+                dn = sqrt((xRange[ijk[1]]-p[1])^2 + (yRange[ijk[2]]-p[2])^2)
+                d = min(d,dn)
+            end                
+        end
+        if B[ijk]
+            d *= -1.0                    
+        end    
+        M[ijk] =  d          
+    end
+    return M, xRange, yRange, zRange
+end
+
+################################################################################
 
 function contoursegment(dcmFolder)    
     cursor_sample = GLFW.CreateStandardCursor(GLFW.CROSSHAIR_CURSOR)
@@ -290,7 +442,6 @@ function contoursegment(dcmFolder)
     cursor_smooth = GLFW.CreateStandardCursor(GLFW.HAND_CURSOR)
     cursor_demote = GLFW.CreateStandardCursor(GLFW.HAND_CURSOR)
     cursor_delete = GLFW.CreateStandardCursor(GLFW.HAND_CURSOR)
-
     sliderWidth = 20 # Width for the sliders in the slidergrid
 
     global dicomData = dicomdir2dicomvec(dcmFolder)
@@ -445,7 +596,7 @@ function contoursegment(dcmFolder)
 
 
     on(h_button_save.clicks) do n
-        exportcontours(save_path, contourSets_accepted, voxelSize)
+        save_contours(save_path, contourSets_accepted, voxelSize)
     end
 
     on(h_button_load.clicks) do n
@@ -809,4 +960,6 @@ function contoursegment(dcmFolder)
     screen = display(fig)
     window = GLMakie.to_native(screen)
     GLFW.SetCursor(window, cursor_sample)
+
+    return fig, ax1, ax2
 end

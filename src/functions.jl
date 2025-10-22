@@ -506,6 +506,8 @@ function contoursegment(dcmFolder; background_contours=Vector{String}())
     global y = 0.0:voxelSize[2]:voxelSize[2]*siz[2]
     global z = dicomData[firstSlice].SliceLocation:voxelSize[3]:(dicomData[firstSlice].SliceLocation + (voxelSize[3]*siz[3]))
 
+    numContoursSlice = Observable(0)
+
     A = getslice(dicomData,initialSliceIndices[1],1)
     B = getslice(dicomData,initialSliceIndices[2],2)
 
@@ -535,6 +537,8 @@ function contoursegment(dcmFolder; background_contours=Vector{String}())
 
     Label(fig[1, 3][7, 1], "Merge imports")
     global toggle_merge = Toggle(fig[1, 3][7,2], active = false)
+
+    hInfo = Label(fig[1, 3][8, 1], "Num. contours slice $sliceIndex: $(numContoursSlice[])")
 
     ax1 = LScene(fig[1,1]); 
     # ax1 = AxisGeom(fig[1, 1], limits=(0,siz[1]*voxelSize[1],0,siz[2]*voxelSize[2],0,siz[3]*voxelSize[3]))
@@ -571,7 +575,7 @@ function contoursegment(dcmFolder; background_contours=Vector{String}())
 
 
     # ax2 = LScene(fig[1,1]); 
-    ax2 = Axis(fig[1, 2], aspect = DataAspect(), xlabel = "X", ylabel = "Y", title="Sample contour", limits=(0,siz[1]*voxelSize[1],0,siz[2]*voxelSize[2]),xrectzoom=false, yrectzoom=false)
+    ax2 = Axis(fig[1, 2], aspect = DataAspect(), xlabel = "X", ylabel = "Y", title="Sample draft contour", limits=(0,siz[1]*voxelSize[1],0,siz[2]*voxelSize[2]),xrectzoom=false, yrectzoom=false)
     hs4 = heatmap!(ax2,x,y,raw_image, colormap = cmap, colorrange=(colorbarLimit_lower, colorbarLimit_upper))
 
     currentMode = Observable(:sample)
@@ -632,9 +636,12 @@ function contoursegment(dcmFolder; background_contours=Vector{String}())
         end
     end
 
-
     on(h_button_save.clicks) do n
         save_contours(save_path, contourSets_accepted, voxelSize)
+    end
+
+    on(numContoursSlice) do n
+        hInfo.text = "Num. contours slice $sliceIndex: $(numContoursSlice[])"
     end
 
     on(h_button_load.clicks) do n
@@ -648,12 +655,13 @@ function contoursegment(dcmFolder; background_contours=Vector{String}())
                         for V in contourSet                            
                             push!(contourSets_accepted[iSlice], V)                            
                         end
-                    end
-                    
+                    end                    
                 end
             end        
+            numContoursSlice[] = length(contourSets_accepted[sliceIndex])
         else # REPLACE contours with load 
             global contourSets_accepted = contourSets_imported
+            numContoursSlice[] = length(contourSets_accepted[sliceIndex])
         end        
         update_accepted_plot(h1_accepted, h2_accepted, contourSets_accepted)
     end
@@ -782,7 +790,7 @@ function contoursegment(dcmFolder; background_contours=Vector{String}())
                             update_draft_plot(h2_draft_bg, contourSet_draft; use_color=false)
                             update_draft_plot(h2_draft, contourSet_draft; use_color=true) 
 
-                            global indexNearest = 0 # Reset to zero
+                            global indexNearest = 0 # Reset to zero                            
                         else
                             ax2.title = "Accept draft contour, -> l.click to merge with nearest OR r.click to add as new."
                         end                    
@@ -816,16 +824,16 @@ function contoursegment(dcmFolder; background_contours=Vector{String}())
                         update_draft_plot(h2_draft_bg, contourSet_draft; use_color=false)
                         update_draft_plot(h2_draft, contourSet_draft; use_color=true) 
                         global indexNearest = 0 # Reset to zero
-                    end
+                    end                    
                 elseif event.type === MouseEventTypes.rightclick
                     if indexNearest == 0 # First time        
                         currentMode[] = :sample         
                     else
-                        push!(contourSets_accepted[sliceIndex],contourSet_draft[indexNearest])
+                        push!(contourSets_accepted[sliceIndex], contourSet_draft[indexNearest])
                         update_accepted_plot(h1_accepted, h2_accepted, contourSets_accepted)
 
                         # Remove accepted from draft set and update plot 
-                        deleteat!(contourSet_draft,indexNearest)
+                        deleteat!(contourSet_draft, indexNearest)
                         update_draft_plot(h1_draft, contourSet_draft; use_color=false)
                         update_draft_plot(h2_draft_bg, contourSet_draft; use_color=false)
                         update_draft_plot(h2_draft, contourSet_draft; use_color=true) 
@@ -833,6 +841,7 @@ function contoursegment(dcmFolder; background_contours=Vector{String}())
                         global indexNearest = 0 # Reset to zero
                     end
                 end
+                numContoursSlice[] = length(contourSets_accepted[sliceIndex])
             else
                 currentMode[] = :sample  
             end
@@ -858,6 +867,7 @@ function contoursegment(dcmFolder; background_contours=Vector{String}())
                     update_draft_plot(h1_draft, contourSet_draft; use_color=false)
                     update_draft_plot(h2_draft_bg, contourSet_draft; use_color=false)
                     update_draft_plot(h2_draft, contourSet_draft; use_color=true)                 
+                    numContoursSlice[] = length(contourSets_accepted[sliceIndex])
                 end
             elseif event.type === MouseEventTypes.rightclick
                 currentMode[] = :sample  
@@ -902,8 +912,9 @@ function contoursegment(dcmFolder; background_contours=Vector{String}())
     end
 
     on(currentMode) do val
-        if val == :sample        
-            ax2.title = "Sample draft contour"
+        numCountours = length(contourSets_accepted[sliceIndex])
+        if val == :sample                    
+            ax2.title = "Sample draft contour" 
             GLFW.SetCursor(window, cursor_sample)
         elseif val == :cut
             ax2.title = "Cut draft contour, l.click first and second corner"
@@ -912,7 +923,7 @@ function contoursegment(dcmFolder; background_contours=Vector{String}())
             ax2.title = "Draw draft contour, l.click to add points"        
             GLFW.SetCursor(window, cursor_draw)
         elseif val == :accept
-            ax2.title = "Accept draft contour, l.click to accept nearest."
+            ax2.title = "Accept draft contour, l.click to accept nearest" 
             if length(contourSet_draft)==1 && isempty(contourSets_accepted[sliceIndex])
                 # Only one draft contour so no need to select, just accept this one
                 push!(contourSets_accepted[sliceIndex],contourSet_draft[1])
@@ -923,18 +934,22 @@ function contoursegment(dcmFolder; background_contours=Vector{String}())
                 update_draft_plot(h1_draft, contourSet_draft; use_color=false)
                 update_draft_plot(h2_draft_bg, contourSet_draft; use_color=false)
                 update_draft_plot(h2_draft, contourSet_draft; use_color=true) 
+                numContoursSlice[] = length(contourSets_accepted[sliceIndex])
             end        
             GLFW.SetCursor(window, cursor_accept)
         elseif val == :smooth
-            ax2.title = "Smooth accepted contour"
-            if length(contourSets_accepted[sliceIndex]) == 1# Just one so just smooth that one
+            ax2.title = "Smooth accepted contour" 
+            if numCountours == 1# Just one so just smooth that one
                 contourSets_accepted[sliceIndex][1] = smooth_contour(contourSets_accepted[sliceIndex][1]; λ = λ)
-                update_accepted_plot(h1_accepted, h2_accepted, contourSets_accepted)
-            end        
-            GLFW.SetCursor(window, cursor_smooth)
+                update_accepted_plot(h1_accepted, h2_accepted, contourSets_accepted)                
+            elseif numCountours == 0 
+                currentMode[] = :sample
+            else numCountours>0
+                GLFW.SetCursor(window, cursor_smooth)
+            end                    
         elseif val == :demote
-            ax2.title = "Demote accepted contour"
-            if length(contourSets_accepted[sliceIndex]) == 1# Just one so just smooth that one
+            ax2.title = "Demote accepted contour" 
+            if numCountours == 1# Just one so just smooth that one
                 push!(contourSet_draft, contourSets_accepted[sliceIndex][1])
                 contourSets_accepted[sliceIndex]=Vector{Vector{Point{3,Float64}}}()
                 update_accepted_plot(h1_accepted, h2_accepted, contourSets_accepted)
@@ -982,9 +997,9 @@ function contoursegment(dcmFolder; background_contours=Vector{String}())
     hSlider3 = sg.sliders[3]#Slider(fig[5, :], range = sliceKeySet, startvalue = startSlice, linewidth=30)
     on(hSlider3.value) do stepIndex 
         global sliceIndex = stepIndex
-
         global contourSet_draft = Vector{Vector{Point{3,Float64}}}()
         
+        numContoursSlice[] = length(contourSets_accepted[sliceIndex])
         update_accepted_plot(h1_accepted, h2_accepted, contourSets_accepted)
         update_background_plot(h2_bg, background_contours, sliceIndex)
 

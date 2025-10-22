@@ -128,7 +128,7 @@ function contour_at_click(xy_click, voxelSize, raw_image; c = NaN)
     _,indUnique,indMap = gunique(VR; return_index=Val(true), return_inverse=Val(true),sort_entries=false)
     V_contour_raw = V_contour_raw[sort(indUnique)] # The unique node set
 
-    if toggle.active[]
+    if toggle_smooth.active[]
         V_contour_raw = smooth_contour(V_contour_raw; λ = λ)
     end
     return [Point{3,Float64}(v[1],v[2],dicomData[sliceIndex].SliceLocation) for v in V_contour_raw]
@@ -189,6 +189,23 @@ function update_draft_plot(h, contourSet; use_color=false)
     end
 end
 
+function update_background_plot(h2_bg, background_contours, sliceIndex)
+    if !isempty(background_contours)
+        for filename_bg in background_contours
+            V_plot3D = Vector{Point{3,Float64}}()    
+            V_nan = Point{3,Float64}(NaN, NaN, NaN)
+            contourSet_imported, _ = load_contours(filename_bg)
+            if !isempty(contourSet_imported[sliceIndex])
+                for V in  contourSet_imported[sliceIndex]
+                    append!(V_plot3D, V)                                
+                    push!(V_plot3D, V_nan)                                
+                end                 
+            end     
+            h2_bg[1] = V_plot3D       
+        end
+    end
+end
+
 function update_accepted_plot(h1, h2, contourSets)
     V_nan = Point{3,Float64}(NaN, NaN, NaN)
     V_plot3D = Vector{Point{3,Float64}}()    
@@ -234,6 +251,7 @@ function load_contours(file_name)
     numSlices = parse(Int,info_node.children[1].children[1].value)
     voxelSize = parse.(Float64,split(info_node.children[2].children[1].value,","))
     contours_node = contour_segmentation_node.children[2]
+
     contourSets_accepted = [ Vector{Vector{Point{3,Float64}}}()  for _ in 1:numSlices]  
     for slice_node in children(contours_node)
         iSlice = parse(Int,slice_node.attributes["id"])
@@ -434,7 +452,7 @@ end
 
 ################################################################################
 
-function contoursegment(dcmFolder)    
+function contoursegment(dcmFolder; background_contours=Vector{String}())    
     cursor_sample = GLFW.CreateStandardCursor(GLFW.CROSSHAIR_CURSOR)
     cursor_cut    = GLFW.CreateStandardCursor(GLFW.ARROW_CURSOR)
     cursor_draw   = GLFW.CreateStandardCursor(GLFW.HAND_CURSOR)
@@ -497,7 +515,7 @@ function contoursegment(dcmFolder)
     fig = Figure(size=figSize)
 
     Label(fig[1, 3][1, 1], "Smooth raw")
-    global toggle = Toggle(fig[1, 3][1,2], active = false)
+    global toggle_smooth = Toggle(fig[1, 3][1,2], active = false) 
 
     Label(fig[1, 3][2, 1], "λ: ")
     h_textBox_smooth = Textbox(fig[1, 3][2, 2], placeholder = "$λ")
@@ -515,9 +533,24 @@ function contoursegment(dcmFolder)
     Label(fig[1, 3][6, 1], "cMin: ")
     h_textBox_cMin = Textbox(fig[1, 3][6, 2], placeholder = "$minVal")
 
+    Label(fig[1, 3][7, 1], "Merge imports")
+    global toggle_merge = Toggle(fig[1, 3][7,2], active = false)
+
     ax1 = LScene(fig[1,1]); 
     # ax1 = AxisGeom(fig[1, 1], limits=(0,siz[1]*voxelSize[1],0,siz[2]*voxelSize[2],0,siz[3]*voxelSize[3]))
 
+    if !isempty(background_contours)
+        for filename_bg in background_contours
+            contourSet_imported, _ = load_contours(filename_bg)
+            for contourSet in  contourSet_imported
+                if !isempty(contourSet)
+                    for V in contourSet
+                        lines!(ax1, V, color=:blue, linewidth=1)
+                    end
+                end
+            end 
+        end
+    end
 
     hs1 = heatmap!(ax1,z,y,A, colormap = cmap, colorrange=(colorbarLimit_lower, colorbarLimit_upper))
     α = -0.5*pi
@@ -555,6 +588,11 @@ function contoursegment(dcmFolder)
 
     hCut   = lines!(ax2, [Point{2,Float64}(NaN,NaN)], color = :red, linewidth=2, visible=false) #, linestyle=(:dot,:dense)
     hDraw   = lines!(ax2, [Point{2,Float64}(NaN,NaN)], color = :red, linewidth=2, visible=false) #, linestyle=(:dot,:dense)
+
+    h2_bg   = lines!(ax2, [Point{2,Float64}(NaN,NaN)], color = :blue, linewidth=0.5) #, linestyle=(:dot,:dense)
+
+    update_background_plot(h2_bg, background_contours, sliceIndex)
+
 
     # update_plots((hl3), val; use_color=false, make_2D=false)
 
@@ -601,7 +639,22 @@ function contoursegment(dcmFolder)
 
     on(h_button_load.clicks) do n
         contourSets_imported, voxelSize = load_contours(save_path)  
-        global contourSets_accepted = contourSets_imported
+        if toggle_merge.active[] # MERGE contours
+            for (iSlice,contourSet) in enumerate(contourSets_imported)
+                if !isempty(contourSet) # Imported contours for this slice are not empty
+                    if isempty(contourSets_accepted[iSlice]) # No contours present for current slice 
+                        contourSets_accepted[iSlice] = contourSets_imported[iSlice]
+                    else # Contours present to need to push imported contours to merge 
+                        for V in contourSet                            
+                            push!(contourSets_accepted[iSlice], V)                            
+                        end
+                    end
+                    
+                end
+            end        
+        else # REPLACE contours with load 
+            global contourSets_accepted = contourSets_imported
+        end        
         update_accepted_plot(h1_accepted, h2_accepted, contourSets_accepted)
     end
 
@@ -933,7 +986,8 @@ function contoursegment(dcmFolder)
         global contourSet_draft = Vector{Vector{Point{3,Float64}}}()
         
         update_accepted_plot(h1_accepted, h2_accepted, contourSets_accepted)
-        
+        update_background_plot(h2_bg, background_contours, sliceIndex)
+
         hs3[3] = hs4[3] = dicomData[sliceIndex].PixelData       
         Makie.translate!(hs3, 0.0, 0.0, dicomData[sliceIndex].SliceLocation)    
         
@@ -960,6 +1014,7 @@ function contoursegment(dcmFolder)
     screen = display(fig)
     window = GLMakie.to_native(screen)
     GLFW.SetCursor(window, cursor_sample)
+    GLMakie.set_title!(screen, "Imago - Contour segmentation")
 
     return fig, ax1, ax2
 end

@@ -4,4 +4,4 @@ using Imago
 dcmFolder = getdemodata("MRI_human_lower_leg")
 
 # Start contour segmentation tool
-contoursegment(dcmFolder)
+contoursegment(dcmFolder) 

@@ -191,9 +191,9 @@ end
 
 function update_background_plot(h2_bg, background_contours, sliceIndex)
     if !isempty(background_contours)
+        V_plot3D = Vector{Point{3,Float64}}()    
+        V_nan = Point{3,Float64}(NaN, NaN, NaN)
         for filename_bg in background_contours
-            V_plot3D = Vector{Point{3,Float64}}()    
-            V_nan = Point{3,Float64}(NaN, NaN, NaN)
             contourSet_imported, _ = load_contours(filename_bg)
             if !isempty(contourSet_imported[sliceIndex])
                 for V in  contourSet_imported[sliceIndex]
@@ -201,8 +201,8 @@ function update_background_plot(h2_bg, background_contours, sliceIndex)
                     push!(V_plot3D, V_nan)                                
                 end                 
             end     
-            h2_bg[1] = V_plot3D       
         end
+        h2_bg[1] = V_plot3D       
     end
 end
 
